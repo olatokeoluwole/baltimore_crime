@@ -167,15 +167,17 @@ grouped_shotn=grouped_shotn[-1,] # deleted blank row
 
 
 ## merger to get Table showing neighborhood and each type of crime
-crime_nbhd=merge(grouped_crime,shape,"Neighborhood")
 
-#put all data frames into list
+#step1 put all data frames into list
 df_list <- list(grouped_aggass,grouped_arson,grouped_auteft,grouped_burg,
                 grouped_comass,grouped_larcy,grouped_larcy_fa,grouped_rape,
                 grouped_robry,grouped_shotn)      
 
-#merge all data frames together
+#step2 merge all data frames together
 crime_nbhd=reduce(df_list,full_join, by='Neighborhood')
+
+
+w=merge(grouped_crime,shape,"Neighborhood")
 
 
 shape=rename(shape,Neighborhood=NBRDESC) # I had to rename NBRDESC column on the shapefile to Neighborhood
@@ -188,38 +190,63 @@ shape=rename(shape,Neighborhood=NBRDESC) # I had to rename NBRDESC column on the
 
 crime_nbhd_shape=merge(crime_nbhd,shape,"Neighborhood") # ready for chloropleth map
 
+st_as_sf(crime_nbhd_shape)#convert to sf object so that it can be plotted interactively
 
-#ready to map data
+
+#READY TO PLOT DATA
 crime # point maps of all crime in the data
 crime_nbhd #tablular data for each crime in each neibourghood
+crime_nbhd_shape #added shapefile to neibourghood per crime
+grouped_crime # table showing crime and frequency
 
 #PLOTTINGS
-plot(crime_nbhd)
+plot(crime_nbhd)# rough and dirty scatter plot
 
 
 
 #plot basic bar chat of number in each Neighborhood
-ggplot(grouped_crime, aes(x=Neighborhood, y=n)) + 
+ggplot(crime_nbhd, aes(x=Neighborhood, y=ARSON)) + 
   geom_bar(stat = "identity")
 
 
-#plot crime points
+#plot scatter point
 
 df2=crime_nbhd %>% 
   plot_ly(x=~BURGLARY,y=~ARSON)
 df2 # interactive scatter plot
 
-
-
-#####################
-
-
-ggplot(crime, aes(x=Longitude, y=~Latitude)) + 
+#plot point location of crimes
+crime_points=ggplot(crime, aes(x=Longitude, y=Latitude,geometry='geometry')) + 
   geom_point()
+crime_points
+
+#plot interactive choropleth map
+fig <- ggplotly(
+  ggplot(crime_nbhd_shape) +
+    geom_sf(aes(fill = RAPE, geometry='geometry'))
+) 
+
+fig
 
 
-ggplot() + 
-  geom_sf(data = crime_nbhd, mapping = aes(fill = (n),geometry=geometry), show.legend = FALSE)
+###############
+#points within shape
+
+
+crime=st_as_sf(crime, coords = c("Longitude", "Latitude"), crs = 4326)
+shape=st_transform(shape,4326)
+
+str(crime)
+st_crs(crime)
+str(shape)
+st_crs(shape)
+w=st_intersection(crime,shape)
+
+st_transform(shape,4326)
+######
+
+
+
 
 ggplot() + 
   geom_sf(data = shape, mapping = aes(fill = (ACRES),geometry=geometry), show.legend = FALSE)
