@@ -8,31 +8,42 @@ library(sf)
 library(lubridate)
 library(leaflet)
 library(mapview)
-#library(d3heatmap)
-
+library(flexdashboard)
 
 
 #read in data 
 #csv as stringsAsFactors
-#shapefile as sf
+#shapefile as an sf
 crime=read.csv("C:/Users/Oluwole Olatoke/Desktop/CrimeData.csv")
 shape= sf::st_read("C:/Users/Oluwole Olatoke/Desktop/New folder (5)/Maryland_Baltimore_City_Neighborhoods.shp")
+shape=st_transform(shape,4326) #bring to WGS 84
 
 #view of loaded data
 crime=filter(crime, Latitude !=0)
 crime=filter(crime, Longitude!=0)
-head(crime)
-str(crime)
 
-plot(shape)
-str(shape)
 
 #WRANGLING
+## number of crime per weapon
+grouped_wpn=crime %>% 
+  group_by(Weapon) %>% 
+  summarise(n=n()) # to have a Weapon column and summarized number of crime
+grouped_wpn=grouped_wpn[-1,] # deleted blank row
+grouped_wpn=grouped_wpn[-24,] # deleted blank row
+
+grouped_wpn=arrange(grouped_wpn,desc(n))# sort in descending order
+grouped_ttwpn=grouped_wpn[1:10, ] # chose the highest 10
+
+
 ## number of crime per Neighborhood
 grouped_nc=crime %>% 
   group_by(Neighborhood) %>% 
   summarise(n=n()) # to have a neighborhood column and summarized number of crime
-grouped_nc=grouped_crime[-1,] # deleted blank row
+grouped_nc=grouped_nc[-1,] # deleted blank row
+
+grouped_nc=arrange(grouped_nc,desc(n))# sort in descending order
+grouped_ttnc=grouped_nc[1:10, ] # chose the highest 10
+
 
 ##find the frequency of each crime
 grouped_crime=crime %>% 
@@ -155,7 +166,6 @@ grouped_comm=grouped_comm[-1,] # deleted blank row
 
 
 
-SHOOTING
 ###SHOOTING
 shotn= filter(crime,Description=="SHOOTING")
 grouped_shotn=shotn %>% 
@@ -177,8 +187,6 @@ df_list <- list(grouped_aggass,grouped_arson,grouped_auteft,grouped_burg,
 crime_nbhd=reduce(df_list,full_join, by='Neighborhood')
 
 
-w=merge(grouped_crime,shape,"Neighborhood")
-
 
 shape=rename(shape,Neighborhood=NBRDESC) # I had to rename NBRDESC column on the shapefile to Neighborhood
                                          # so that I get a column to merge by
@@ -190,7 +198,7 @@ shape=rename(shape,Neighborhood=NBRDESC) # I had to rename NBRDESC column on the
 
 crime_nbhd_shape=merge(crime_nbhd,shape,"Neighborhood") # ready for chloropleth map
 
-st_as_sf(crime_nbhd_shape)#convert to sf object so that it can be plotted interactively
+crime_nbhd_shape=st_as_sf(crime_nbhd_shape)#convert to sf object so that it can be plotted interactively
 
 
 #READY TO PLOT DATA
@@ -198,40 +206,51 @@ crime # point maps of all crime in the data
 crime_nbhd #tablular data for each crime in each neibourghood
 crime_nbhd_shape #added shapefile to neibourghood per crime
 grouped_crime # table showing crime and frequency
+grouped_ttwpn# top ten weapons used
+
 
 #PLOTTINGS
+top_Weapons_used=ggplot(grouped_ttwpn, aes(x=Weapon, y=n)) + 
+  geom_bar(stat = "identity")+
+  ggtitle("Tope 10 Weapons used in crime")
+top_Weapons_used=ggplotly(top_Weapons_used) # Top ten weapons used in crime in the city
+
 plot(crime_nbhd)# rough and dirty scatter plot
 
 
-
-#plot basic bar chat of number in each Neighborhood
-ggplot(crime_nbhd, aes(x=Neighborhood, y=ARSON)) + 
-  geom_bar(stat = "identity")
-
+#plot basic bar chat of number in each Neighborhood 
+crime_nbhd_barchart=ggplot(crime_nbhd, aes(x=Neighborhood, y=ARSON)) + 
+  geom_bar(stat = "Identity")
+#make it interactive
+crime_nbhd_barchart
+ggplotly(crime_nbhd_barchart)
 
 #plot scatter point
+df2=ggplot(crime_nbhd, aes(BURGLARY, ARSON, colour = LARCENY)) + 
+  geom_point()
 
-df2=crime_nbhd %>% 
-  plot_ly(x=~BURGLARY,y=~ARSON)
-df2 # interactive scatter plot
+#make it interactive
+ggplotly(df2)
 
 #plot point location of crimes
-crime_points=ggplot(crime, aes(x=Longitude, y=Latitude,geometry='geometry')) + 
+crime_points=ggplot(crime, aes(x=Longitude, y=Latitude)) + 
   geom_point()
-crime_points
+ggplotly(crime_points)
 
 #plot interactive choropleth map
-fig <- ggplotly(
-  ggplot(crime_nbhd_shape) +
-    geom_sf(aes(fill = RAPE, geometry='geometry'))
-) 
-
+fig <- ggplot(crime_nbhd_shape) +
+  geom_sf(aes(fill = RAPE)) +
+  scale_fill_distiller("RAPE", palette = "Spectral") +
+  ggtitle("Rape in Baltimore Map")
 fig
 
+#make it interactive
+fig=ggplotly(fig)
 
 ###############
 #points within shape
 
+str(crime_nbhd_shape)
 
 crime=st_as_sf(crime, coords = c("Longitude", "Latitude"), crs = 4326)
 shape=st_transform(shape,4326)
@@ -240,20 +259,6 @@ str(crime)
 st_crs(crime)
 str(shape)
 st_crs(shape)
-w=st_intersection(crime,shape)
 
-st_transform(shape,4326)
+
 ######
-
-
-
-
-ggplot() + 
-  geom_sf(data = shape, mapping = aes(fill = (ACRES),geometry=geometry), show.legend = FALSE)
-
-
-
-st_intersection(shape,crime$GeoLocation)
-
-
-
